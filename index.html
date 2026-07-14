@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Précis — Dialogue Summarizer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F5F3EE;
+    --paper-raised:#FBFAF7;
+    --ink:#14181C;
+    --ink-soft:#4B5359;
+    --rule:#DAD5C9;
+    --teal:#3C6E71;
+    --teal-deep:#2A4F52;
+    --gold:#B08D57;
+    --error:#A5432E;
+  }
+
+  *{ box-sizing:border-box; }
+
+  html,body{
+    margin:0;
+    padding:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Inter', sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  body{
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:64px 24px 40px;
+  }
+
+  .wrap{
+    width:100%;
+    max-width:680px;
+  }
+
+  /* ---------- Header ---------- */
+  header{
+    margin-bottom:48px;
+  }
+
+  .eyebrow{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--teal-deep);
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-bottom:18px;
+  }
+
+  .eyebrow::before{
+    content:"";
+    width:20px;
+    height:1px;
+    background:var(--gold);
+  }
+
+  h1{
+    font-family:'Fraunces', serif;
+    font-optical-sizing:auto;
+    font-weight:500;
+    font-size:44px;
+    line-height:1.08;
+    letter-spacing:-0.01em;
+    margin:0 0 14px;
+  }
+
+  h1 em{
+    font-style:italic;
+    color:var(--teal);
+  }
+
+  .sub{
+    font-size:15px;
+    line-height:1.6;
+    color:var(--ink-soft);
+    max-width:46ch;
+  }
+
+  /* ---------- Card ---------- */
+  .card{
+    background:var(--paper-raised);
+    border:1px solid var(--rule);
+    border-radius:2px;
+    padding:28px 28px 22px;
+    position:relative;
+  }
+
+  .card::before{
+    content:"";
+    position:absolute;
+    top:0; left:0;
+    width:100%;
+    height:3px;
+    background:linear-gradient(90deg, var(--teal) 0%, var(--teal) var(--fill,0%), transparent var(--fill,0%));
+    transition:background 0.4s ease;
+  }
+
+  label.field-label{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+    margin-bottom:10px;
+  }
+
+  #charcount{
+    font-variant-numeric:tabular-nums;
+    color:var(--gold);
+  }
+
+  textarea{
+    width:100%;
+    min-height:200px;
+    resize:vertical;
+    border:none;
+    outline:none;
+    background:transparent;
+    font-family:'Inter', sans-serif;
+    font-size:15.5px;
+    line-height:1.65;
+    color:var(--ink);
+    padding:0;
+  }
+
+  textarea::placeholder{
+    color:#A8A296;
+  }
+
+  .card-footer{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-top:20px;
+    padding-top:18px;
+    border-top:1px solid var(--rule);
+  }
+
+  .hint{
+    font-size:12.5px;
+    color:var(--ink-soft);
+    font-family:'IBM Plex Mono', monospace;
+  }
+
+  button{
+    font-family:'Inter', sans-serif;
+    font-weight:600;
+    font-size:14px;
+    letter-spacing:0.01em;
+    color:var(--paper-raised);
+    background:var(--ink);
+    border:none;
+    padding:12px 22px;
+    border-radius:2px;
+    cursor:pointer;
+    display:inline-flex;
+    align-items:center;
+    gap:10px;
+    transition:background 0.2s ease, transform 0.15s ease;
+  }
+
+  button:hover:not(:disabled){
+    background:var(--teal-deep);
+  }
+
+  button:active:not(:disabled){
+    transform:translateY(1px);
+  }
+
+  button:disabled{
+    background:#C9C4B7;
+    cursor:not-allowed;
+  }
+
+  .spinner{
+    width:13px; height:13px;
+    border-radius:50%;
+    border:2px solid rgba(255,255,255,0.35);
+    border-top-color:#fff;
+    animation:spin 0.7s linear infinite;
+    display:none;
+  }
+
+  button.loading .spinner{ display:inline-block; }
+  button.loading .btn-text::after{ content:"Distilling…"; }
+  button.loading .btn-text{ font-size:0; }
+  button.loading .btn-text::after{ font-size:14px; }
+
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  /* ---------- Compression meter (signature element) ---------- */
+  .meter{
+    margin-top:36px;
+    display:none;
+  }
+
+  .meter.visible{ display:block; animation:rise 0.5s ease both; }
+
+  @keyframes rise{
+    from{ opacity:0; transform:translateY(8px); }
+    to{ opacity:1; transform:translateY(0); }
+  }
+
+  .meter-row{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    color:var(--ink-soft);
+    letter-spacing:0.04em;
+    margin-bottom:10px;
+  }
+
+  .meter-track{
+    position:relative;
+    height:34px;
+    display:flex;
+    align-items:center;
+  }
+
+  .meter-bar-full{
+    height:2px;
+    width:100%;
+    background:var(--rule);
+    position:relative;
+  }
+
+  .meter-bar-fill{
+    position:absolute;
+    top:0; left:0;
+    height:2px;
+    width:0%;
+    background:var(--gold);
+    transition:width 1.1s cubic-bezier(.22,.9,.32,1);
+  }
+
+  .meter-tick{
+    position:absolute;
+    top:50%;
+    width:1px; height:10px;
+    background:var(--ink);
+    transform:translateY(-50%);
+  }
+
+  .meter-tick.start{ left:0; }
+  .meter-tick.end{
+    left:0%;
+    transition:left 1.1s cubic-bezier(.22,.9,.32,1);
+    background:var(--teal-deep);
+    height:14px;
+  }
+
+  .meter-labels{
+    display:flex;
+    justify-content:space-between;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    color:var(--ink-soft);
+    margin-top:4px;
+  }
+
+  .ratio-badge{
+    font-family:'Fraunces', serif;
+    font-weight:500;
+    font-style:italic;
+    color:var(--teal);
+  }
+
+  /* ---------- Result ---------- */
+  .result{
+    margin-top:20px;
+    background:var(--paper-raised);
+    border:1px solid var(--rule);
+    border-left:3px solid var(--teal);
+    border-radius:2px;
+    padding:24px 26px;
+    display:none;
+  }
+
+  .result.visible{ display:block; animation:rise 0.5s ease both; }
+
+  .result-label{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    color:var(--teal-deep);
+    margin-bottom:12px;
+  }
+
+  .result p{
+    font-family:'Fraunces', serif;
+    font-weight:400;
+    font-size:19px;
+    line-height:1.55;
+    margin:0;
+    color:var(--ink);
+  }
+
+  .error-box{
+    margin-top:20px;
+    padding:14px 18px;
+    border:1px solid var(--error);
+    border-radius:2px;
+    color:var(--error);
+    font-size:13.5px;
+    font-family:'IBM Plex Mono', monospace;
+    display:none;
+  }
+
+  .error-box.visible{ display:block; }
+
+  footer{
+    margin-top:56px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    color:#A8A296;
+    letter-spacing:0.04em;
+  }
+
+  @media (max-width:480px){
+    h1{ font-size:34px; }
+    .card{ padding:20px 18px; }
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{ animation:none !important; transition:none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">T5 · Fine-tuned</div>
+    <h1>Say less,<br><em>mean the same.</em></h1>
+    <p class="sub">Paste a conversation. The model reads every line and returns only what matters.</p>
+  </header>
+
+  <div class="card" id="card">
+    <label class="field-label">
+      <span>Dialogue</span>
+      <span id="charcount">0 characters</span>
+    </label>
+    <textarea id="dialogue" placeholder="Amanda: I'm running 10 minutes late.&#10;Ben: No worries, I just got here myself.&#10;Amanda: Great, order me a coffee?&#10;Ben: Already on it."></textarea>
+
+    <div class="card-footer">
+      <span class="hint">⌘ + Enter to summarize</span>
+      <button id="summarizeBtn">
+        <span class="spinner"></span>
+        <span class="btn-text">Summarize</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="meter" id="meter">
+    <div class="meter-row">
+      <span>COMPRESSION</span>
+    </div>
+    <div class="meter-track">
+      <div class="meter-bar-full">
+        <div class="meter-bar-fill" id="meterFill"></div>
+        <div class="meter-tick start"></div>
+        <div class="meter-tick end" id="meterEnd"></div>
+      </div>
+    </div>
+    <div class="meter-labels">
+      <span id="labelStart">0 words in</span>
+      <span class="ratio-badge" id="labelRatio">—</span>
+      <span id="labelEnd">0 words out</span>
+    </div>
+  </div>
+
+  <div class="result" id="result">
+    <div class="result-label">Summary</div>
+    <p id="resultText"></p>
+  </div>
+
+  <div class="error-box" id="errorBox"></div>
+
+  <footer>précis — local summarization service</footer>
+</div>
+
+<script>
+  const textarea = document.getElementById('dialogue');
+  const charcount = document.getElementById('charcount');
+  const btn = document.getElementById('summarizeBtn');
+  const resultBox = document.getElementById('result');
+  const resultText = document.getElementById('resultText');
+  const errorBox = document.getElementById('errorBox');
+  const meter = document.getElementById('meter');
+  const meterFill = document.getElementById('meterFill');
+  const meterEnd = document.getElementById('meterEnd');
+  const labelStart = document.getElementById('labelStart');
+  const labelEnd = document.getElementById('labelEnd');
+  const labelRatio = document.getElementById('labelRatio');
+  const card = document.getElementById('card');
+
+  textarea.addEventListener('input', () => {
+    const len = textarea.value.length;
+    charcount.textContent = `${len} character${len === 1 ? '' : 's'}`;
+    card.style.setProperty('--fill', Math.min(100, (len/1500)*100) + '%');
+  });
+
+  textarea.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      e.preventDefault();
+      runSummarize();
+    }
+  });
+
+  btn.addEventListener('click', runSummarize);
+
+  async function runSummarize(){
+    const dialogue = textarea.value.trim();
+    errorBox.classList.remove('visible');
+
+    if (!dialogue) {
+      errorBox.textContent = 'Paste a dialogue first — there is nothing to distill.';
+      errorBox.classList.add('visible');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.classList.add('loading');
+    resultBox.classList.remove('visible');
+    meter.classList.remove('visible');
+
+    try {
+      const res = await fetch('/summarize/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dialogue })
+      });
+
+      if (!res.ok) {
+        throw new Error(`Server responded ${res.status}`);
+      }
+
+      const data = await res.json();
+      const summary = data.summary || '';
+
+      resultText.textContent = summary;
+      resultBox.classList.add('visible');
+
+      const wordsIn = dialogue.split(/\s+/).filter(Boolean).length;
+      const wordsOut = summary.split(/\s+/).filter(Boolean).length;
+      const ratio = wordsIn > 0 ? Math.round((1 - wordsOut/wordsIn) * 100) : 0;
+
+      labelStart.textContent = `${wordsIn} words in`;
+      labelEnd.textContent = `${wordsOut} words out`;
+      labelRatio.textContent = ratio > 0 ? `${ratio}% shorter` : 'expanded';
+
+      meter.classList.add('visible');
+      // animate after paint
+      requestAnimationFrame(() => {
+        const pct = wordsIn > 0 ? Math.min(100, (wordsOut/wordsIn)*100) : 0;
+        meterFill.style.width = pct + '%';
+        meterEnd.style.left = pct + '%';
+      });
+
+    } catch (err) {
+      errorBox.textContent = `Could not reach the summarizer — ${err.message}`;
+      errorBox.classList.add('visible');
+    } finally {
+      btn.disabled = false;
+      btn.classList.remove('loading');
+    }
+  }
+</script>
+
+</body>
+</html>
